@@ -6,6 +6,21 @@
 #define SPI_DATA_ORDER	MSBFIRST
 #define SPI_DATAMODE	SPI_MODE0
 
+#define WAIT_FAILURE(WAITER, WAITMAX)  \
+	do { \
+			while (!waitBusy()) { \
+				if (rst_counter>5) { \
+					Serial.printf("%s wait exceeded %d times. Failing", WAITER, WAITMAX); \
+					return false; \
+				}  \
+				Serial.printf("%s wait exceeded, retrying: tried %d times.", WAITER, rst_counter); \
+				rst_counter++; \
+			} \
+			rst_counter=0; \
+	}while(0)
+
+
+
 class UC8253 {
 	public:
 		UC8253(uint8_t scl, uint8_t sda, uint8_t res, uint8_t dc, uint8_t cs, uint8_t busy, uint32_t width, uint32_t height):
@@ -14,19 +29,20 @@ class UC8253 {
 				fb=(uint8_t *)malloc(sizeof(uint8_t)*fbsiz);
 			}
 		bool begin(void) {
+			delay(10); /* Make sure there actually is power at everything */
 			rst_counter=0;
 			pinMode(cs, OUTPUT);
 			pinMode(dc, OUTPUT);
 			pinMode(res, OUTPUT);
 			pinMode(busy, INPUT);
 
-			digitalWrite(cs, LOW);
-
 			Serial.begin(115200);
 
 			SPI.begin(scl, -1, sda, cs); /* No miso line, data should be sent back via SDA? fake spi and all */
 			SPI.beginTransaction(SPISettings(SPI_MAX_W_SPEED, SPI_DATA_ORDER, SPI_DATAMODE));
 			delay(10);
+
+			digitalWrite(cs, LOW);
 
 			return true;
 		}
