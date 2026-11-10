@@ -46,6 +46,20 @@ class UC8253 {
 
 			return true;
 		}
+		void sendbuf(void) {
+			int i;
+			command(0x13);
+			for (i=0;i<bufsiz;i++) data(fb[i]);
+		}
+		void clearbuf(uint8_t colour) {
+			memset(fb, colour, fbsiz);
+		}
+		void refresh(void) {
+		
+		}
+		void lutload(void) {
+		
+		}
 	private:
 		uint8_t *fb;
 		uint8_t scl, sda, res, dc, cs, busy, rst_counter; 
