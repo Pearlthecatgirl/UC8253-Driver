@@ -86,6 +86,8 @@ class UC8253 {
 		 *	TODO: Make a system to track refresh, call upon full refresh every 15-20 refresh cycles
 		 * */
 		bool refreshPartial(void) {
+			command(0x91); /*PTIN*/
+
 			command(0xE0);
 			data(0x02);
 
@@ -121,8 +123,7 @@ class UC8253 {
 			uint32_t i;
 			uint8_t *t_ptr;
 
-			setRAMStartStop(0, 0, width, height);
-			command(0x91); /*PTIN*/
+			setRAMStartStop(1, 1, width, height);
 
 			command(0x10);
 			for (i=0;i<fbsiz;i++) {
