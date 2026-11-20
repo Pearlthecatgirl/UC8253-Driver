@@ -74,6 +74,7 @@ class UC8253 {
 			data(0xD7);
 
 			WAIT_FAILURE("VCOM SETTING", 5); /* Might not be necessary */
+			setRAMStartStop(0, 0, width, height);
 
 			return true;
 		}
