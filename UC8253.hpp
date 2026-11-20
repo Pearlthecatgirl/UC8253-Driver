@@ -44,6 +44,37 @@ class UC8253 {
 
 			digitalWrite(cs, LOW);
 
+			/* Hardware reset */
+			digitalWrite(res, LOW);
+			delay(20);
+			digitalWrite(res, HIGH);
+			delay(20);
+
+			WAIT_FAILURE("HWRESET", 5);
+
+			command(0x04); /* POWER ON: PON */
+			WAIT_FAILURE("Power ON Sequence", 5);
+
+			command(0x00); /* Panel Setting: PSR */
+			data(0xdf); /* TODO: Gate scanning/direction, change for orientation (First byte, refer to manual) */
+			data(0x0d);
+
+			command(0x01); /* Power setting: PWR */
+			data(0x03); /*Default settings */
+			data(0x10); /*Default settings */
+			data(0x3f); /*Default settings */
+			data(0x3f); /*Default settings */
+			data(0x0D); /*Default settings */
+
+			/* Temperature sensor configuration*/
+			command(0x41);
+			data(0x80); /*enable internal temp sensor */
+
+			command(0x50); /* VCOM and data interval setting: CDI */
+			data(0xD7);
+
+			WAIT_FAILURE("VCOM SETTING", 5); /* Might not be necessary */
+
 			return true;
 		}
 	private:
@@ -75,6 +106,16 @@ class UC8253 {
 				delay(100);
 			}
 			return true;
+		}
+		void setRAMStartStop(uint8_t sx, uint8_t sy, uint8_t ex, uint8_t ey) {
+			command(0x90);
+			data(((sx-1)&0xf8)|0x7); /*just take the upper 5 bits, bottom 3 bits are always 1*/
+			data(((ex-1)&0xf8)|0x7); /*just take the upper 5 bits, bottom 3 bits are always 1*/
+			data((sy-1)>>8);
+			data((sy-1)&0xff);
+			data((ey-1)>>8);
+			data((ey-1)&0xff);
+			data(0x01);
 		}
 		uint8_t flip_byte(uint8_t byte) {
 			uint8_t LUT[]={
