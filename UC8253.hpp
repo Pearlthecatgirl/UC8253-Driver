@@ -9,7 +9,7 @@
 #define WAIT_FAILURE(WAITER, WAITMAX)  \
 	do { \
 			while (!waitBusy()) { \
-				if (rst_counter>5) { \
+				if (rst_counter>WAITMAX) { \
 					Serial.printf("%s wait exceeded %d times. Failing", WAITER, WAITMAX); \
 					return false; \
 				}  \
@@ -38,13 +38,9 @@ class UC8253 {
 			pinMode(res, OUTPUT);
 			pinMode(busy, INPUT);
 
-			Serial.begin(115200);
-
 			SPI.begin(scl, -1, sda, cs); /* No miso line, data should be sent back via SDA? fake spi and all */
 			SPI.beginTransaction(SPISettings(SPI_MAX_W_SPEED, SPI_DATA_ORDER, SPI_DATAMODE));
 			delay(10);
-
-			digitalWrite(cs, LOW);
 
 			/* Hardware reset */
 			digitalWrite(res, LOW);
@@ -52,9 +48,10 @@ class UC8253 {
 			digitalWrite(res, HIGH);
 			delay(20);
 
-			WAIT_FAILURE("HWRESET", 5);
+			//WAIT_FAILURE("HWRESET", 5);
 
 			command(0x04); /* POWER ON: PON */
+
 			WAIT_FAILURE("Power ON Sequence", 5);
 
 			command(0x00); /* Panel Setting: PSR */
@@ -72,11 +69,16 @@ class UC8253 {
 			command(0x41);
 			data(0x80); /*enable internal temp sensor */
 
+			command(0x61); /*RESOLUTION SETTING: TRES*/
+			//data((width>>3)<<3); /* 8 gates per pin, remove lower 3 bits */
+			data(((width-1)&0xf8)); /*just take the upper 5 bits*/
+			data((height-1)>>8);
+			data((height-1)&0xff);
+
 			command(0x50); /* VCOM and data interval setting: CDI */
 			data(0xD7);
 
 			WAIT_FAILURE("VCOM SETTING", 5); /* Might not be necessary */
-			setRAMStartStop(0, 0, width, height);
 
 			return true;
 		}
@@ -95,6 +97,7 @@ class UC8253 {
 
 			command(0x12);/* refresh */
 			WAIT_FAILURE("Partial Refresh", 5);
+			command(0x92); /*exit partial refresh mode*/
 
 			return true;
 		}
@@ -110,12 +113,17 @@ class UC8253 {
 
 			command(0x12);/* refresh */
 			WAIT_FAILURE("Full Refresh", 5);
+			command(0x92); /*exit partial refresh mode*/
 
 			return true;
 		}
 		void sendbuf(void) {
 			uint32_t i;
 			uint8_t *t_ptr;
+
+			setRAMStartStop(0, 0, width, height);
+			command(0x91); /*PTIN*/
+
 			command(0x10);
 			for (i=0;i<fbsiz;i++) {
 				data(oldfb[i]);
@@ -129,8 +137,19 @@ class UC8253 {
 			oldfb=fb;
 			fb=t_ptr;
 		}
-	private:
+		bool end(void) {
+			command(0x02); /* Power off: POF */
+			WAIT_FAILURE("Sleep mode", 5);
+
+			command(0x07); /* deep sleep: DSLP */
+			data(0xa5);
+
+			SPI.endTransaction();
+			SPI.end();
+			return true;
+		}
 		uint8_t *fb, *oldfb; /*Only let edit fb, oldfb should not be editable*/
+	private:
 		uint8_t scl, sda, res, dc, cs, busy, rst_counter; 
 		uint32_t width, height;
 		size_t fbsiz;
@@ -159,7 +178,7 @@ class UC8253 {
 			}
 			return true;
 		}
-		void setRAMStartStop(uint8_t sx, uint8_t sy, uint8_t ex, uint8_t ey) {
+		void setRAMStartStop(uint16_t sx, uint16_t sy, uint16_t ex, uint16_t ey) {
 			command(0x90);
 			data(((sx-1)&0xf8)|0x7); /*just take the upper 5 bits, bottom 3 bits are always 1*/
 			data(((ex-1)&0xf8)|0x7); /*just take the upper 5 bits, bottom 3 bits are always 1*/
