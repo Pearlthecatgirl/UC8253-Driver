@@ -78,6 +78,40 @@ class UC8253 {
 
 			return true;
 		}
+		/* It is not a good idea to explicitly call this
+		 *	TODO: Make a system to track refresh, call upon full refresh every 15-20 refresh cycles
+		 * */
+		bool refreshPartial(void) {
+			command(0xE0);
+			data(0x02);
+
+			command(0xE5);
+			data(0x6E);
+
+			command(0x50);
+			data(0xD7);
+
+			command(0x12);/* refresh */
+			WAIT_FAILURE("Partial Refresh", 5);
+
+			return true;
+		}
+		bool refreshFull(void) {
+			command(0xE0);
+			data(0x02);
+
+			command(0xE5);
+			data(0x5A);
+
+			command(0x50);
+			data(0x97);
+
+			command(0x12);/* refresh */
+			WAIT_FAILURE("Full Refresh", 5);
+
+			return true;
+		}
+
 	private:
 		uint8_t *fb;
 		uint8_t scl, sda, res, dc, cs, busy, rst_counter; 
