@@ -28,6 +28,7 @@ class UC8253 {
 				fbsiz=height*(width/8); /* width is div by 8 because monochrome screen, consider bits instead */
 				fb=(uint8_t *)malloc(sizeof(uint8_t)*fbsiz);
 				oldfb=(uint8_t *)malloc(sizeof(uint8_t)*fbsiz);
+				memset(oldfb, 0xff, sizeof(uint8_t)*fbsiz);
 			}
 		bool begin(void) {
 			delay(10); /* Make sure there actually is power at everything */
@@ -112,8 +113,24 @@ class UC8253 {
 
 			return true;
 		}
+		void sendbuf(void) {
+			uint32_t i;
+			uint8_t *t_ptr;
+			command(0x10);
+			for (i=0;i<fbsiz;i++) {
+				data(oldfb[i]);
+			}
+			command(0x13);
+			for (i=0;i<fbsiz;i++) {
+				data(fb[i]);
+			}
+			/*Swap*/
+			t_ptr=oldfb;
+			oldfb=fb;
+			fb=t_ptr;
+		}
 	private:
-		uint8_t *fb, *oldfb;
+		uint8_t *fb, *oldfb; /*Only let edit fb, oldfb should not be editable*/
 		uint8_t scl, sda, res, dc, cs, busy, rst_counter; 
 		uint32_t width, height;
 		size_t fbsiz;
