@@ -27,6 +27,7 @@ class UC8253 {
 			scl(scl), sda(sda), res(res), dc(dc), cs(cs), busy(busy), width(width), height(height) {
 				fbsiz=height*(width/8); /* width is div by 8 because monochrome screen, consider bits instead */
 				fb=(uint8_t *)malloc(sizeof(uint8_t)*fbsiz);
+				oldfb=(uint8_t *)malloc(sizeof(uint8_t)*fbsiz);
 			}
 		bool begin(void) {
 			delay(10); /* Make sure there actually is power at everything */
@@ -111,9 +112,8 @@ class UC8253 {
 
 			return true;
 		}
-
 	private:
-		uint8_t *fb;
+		uint8_t *fb, *oldfb;
 		uint8_t scl, sda, res, dc, cs, busy, rst_counter; 
 		uint32_t width, height;
 		size_t fbsiz;
