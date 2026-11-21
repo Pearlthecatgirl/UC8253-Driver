@@ -202,6 +202,9 @@ class UC8253 {
 
 			return true;
 		}
+		uint8_t *prevbuf(void) {
+			return this->oldfb;
+		}
 	private:
 		uint8_t *fb, *oldfb; /*Only let edit fb, oldfb should not be editable*/
 		uint8_t scl, sda, res, dc, cs, busy, rst_counter; 
