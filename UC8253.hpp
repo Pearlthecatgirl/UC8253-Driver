@@ -38,7 +38,7 @@
 			rst_counter=0; \
 	}while(0)
 
-typedef enum {FULL, FULLFAST, PARTIAL} UC8253_refreshType ;
+typedef enum {FULL, FULLFAST, PARTIAL, FASTPARTIAL} UC8253_refreshType ;
 
 class UC8253 {
 	public:
@@ -48,6 +48,7 @@ class UC8253 {
 				fb=(uint8_t *)malloc(sizeof(uint8_t)*fbsiz);
 				oldfb=(uint8_t *)malloc(sizeof(uint8_t)*fbsiz);
 				memset(oldfb, 0xff, sizeof(uint8_t)*fbsiz);
+				this->refMode=FULL;
 			}
 		bool begin(void) {
 			pinMode(cs, OUTPUT);
@@ -139,27 +140,52 @@ class UC8253 {
 			for (i=0;i<fbsiz;i++) {
 				data(fb[i]);
 			}
+
+			/* Refresh sequence */
 			switch (refMode) {
 				case FULL:
+					command(0xE5);
+					data(0x00); /* Default setting? test this*/
+
+					command(0x50);
+					data(0x97); /* FULL*/
 					break;
 				case FULLFAST:
+					command(0xE0); /* Cascade setting */
+					data(0x02);
+
+					command(0xE5);
+					data(0x5A); /* FAST */
+
+					command(0x50);
+					data(0x97); /* FULL */
 					break;
 				case PARTIAL:
+					/*TODO this doesn't seem right, but lets roll with it for now*/
+					command(0xE5);
+					data(0x00); /* Default setting? test this*/
+
+					command(0x50);
+					data(0xD7); /* PARTIAL */
+					break;
+				case FASTPARTIAL:
+					command(0xE0); /* Cascade setting */
+					data(0x02);
+
+					command(0xE5);
+					data(0x6E); /* Default setting? test this*/
+
+					command(0xE5); /* temperature sensing?? */
+					data(0x6E);
+
+					command(0x50);
+					data(0xD7); /* PARTIAL */
 					break;
 				default:
+					/*THIS SHOULD NOT HAPPEN*/
 					break;
 
 			}
-
-			/* Refresh sequence */
-
-			/* Fast refresh data*/
-			//command(0xE0);
-			//data(0x02);
-
-			/* Fast refresh data*/
-			//command(0xE5);
-			//data(0x5A);
 
 			command(0x50);
 			data(0x97);
