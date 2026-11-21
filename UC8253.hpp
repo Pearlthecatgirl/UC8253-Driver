@@ -38,6 +38,8 @@
 			rst_counter=0; \
 	}while(0)
 
+typedef enum {FULL, FULLFAST, PARTIAL} UC8253_refreshType ;
+
 class UC8253 {
 	public:
 		UC8253(uint8_t scl, uint8_t sda, uint8_t res, uint8_t dc, uint8_t cs, uint8_t busy, uint32_t width, uint32_t height):
@@ -116,6 +118,12 @@ class UC8253 {
 			data(0xa5);
 			return true;
 		}
+		void setrefreshMode(UC8253_refreshType ref) {
+			this->refMode=ref;
+		}
+		void setfb() {
+			memset(fb, 0x55, fbsiz);
+		}
 		bool sendfb() {
 			uint8_t *tmpptr;
 			/* Set partial refresh data */
@@ -130,6 +138,17 @@ class UC8253 {
 			command(0x13);
 			for (i=0;i<fbsiz;i++) {
 				data(fb[i]);
+			}
+			switch (refMode) {
+				case FULL:
+					break;
+				case FULLFAST:
+					break;
+				case PARTIAL:
+					break;
+				default:
+					break;
+
 			}
 
 			/* Refresh sequence */
@@ -148,10 +167,7 @@ class UC8253 {
 			command(0x12);/* refresh */
 
 			WAIT_FAILURE("refresh", 5);
-			//if (!waitBusy()) {
-			//	Serial.println("refresh failed");
-			//	while (1) delay(100);
-			//}
+
 			command(0x92); /*exit partial refresh mode*/
 
 			tmpptr=oldfb;
@@ -160,13 +176,12 @@ class UC8253 {
 
 			return true;
 		}
+	private:
 		uint8_t *fb, *oldfb; /*Only let edit fb, oldfb should not be editable*/
 		uint8_t scl, sda, res, dc, cs, busy, rst_counter; 
 		uint32_t width, height;
 		size_t fbsiz;
-		enum refreshType {FULL, FULLFAST, PARTIAL} refreshMode;
-	private:
-
+		UC8253_refreshType refMode;
 		/* 0 index? or 1 index. 1 index!!*/
 		void setRAMStartStop(uint16_t sx, uint16_t sy, uint16_t ex, uint16_t ey) {
 			assert(sx > 0 && sy > 0);
