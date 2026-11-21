@@ -122,8 +122,8 @@ class UC8253 {
 		void setrefreshMode(UC8253_refreshType ref) {
 			this->refMode=ref;
 		}
-		void setfb() {
-			memset(fb, 0x55, fbsiz);
+		void setfb(uint8_t byte) {
+			memset(fb, byte, fbsiz);
 		}
 		bool sendfb() {
 			uint8_t *tmpptr;
@@ -201,6 +201,11 @@ class UC8253 {
 			fb=tmpptr;
 
 			return true;
+		}
+		void pixel(uint16_t x, uint16_t y, uint8_t bool_value) {
+			uint8_t tmpbuf=flip_byte(fb[y*(width>>3)+(x>>3)]);
+			tmpbuf^=~(1<<x%8)|(bool_value<<x%8);
+			fb[y*(width>>3)+(x>>3)]=flip_byte(tmpbuf);
 		}
 		uint8_t *prevbuf(void) {
 			return this->oldfb;
