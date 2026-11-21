@@ -31,8 +31,6 @@ class UC8253 {
 				memset(oldfb, 0xff, sizeof(uint8_t)*fbsiz);
 			}
 		bool begin(void) {
-			delay(10); /* Make sure there actually is power at everything */
-			rst_counter=0;
 			pinMode(cs, OUTPUT);
 			pinMode(dc, OUTPUT);
 			pinMode(res, OUTPUT);
@@ -40,32 +38,42 @@ class UC8253 {
 
 			SPI.begin(scl, -1, sda, cs); /* No miso line, data should be sent back via SDA? fake spi and all */
 			SPI.beginTransaction(SPISettings(SPI_MAX_W_SPEED, SPI_DATA_ORDER, SPI_DATAMODE));
-			delay(10);
 
-			/* Hardware reset */
+			/*HWRESET*/
+
 			digitalWrite(res, LOW);
 			delay(20);
 			digitalWrite(res, HIGH);
 			delay(20);
 
-			//WAIT_FAILURE("HWRESET", 5);
+			command(0x04); /* POWER ON: PON*/
+			WAIT_FAILURE("POWER ON Sequence", 5);
 
-			command(0x04); /* POWER ON: PON */
-
-			WAIT_FAILURE("Power ON Sequence", 5);
-
-			command(0x00); /* Panel Setting: PSR */
-			data(0xdf); /* TODO: Gate scanning/direction, change for orientation (First byte, refer to manual) */
+			command(0x00); /* PANEL SETTING: PSR*/
+			data(0xdf);
+			/* RES1|RES0 : 	RESOLUTION 0b11 ->480x240
+			 * REG		 : 	0b0 -> load lut from otp
+			 * KW/R		 : 	0b1 -> bw only
+			 * UD		 : 	gate scan direction 0b1 -> scan up
+			 * SHL		 : 	src shift direction 0b1 -> shift right
+			 * SHD_N	 : 	booster switch 0b1 -> booster on
+			 * RST_N	 : 	soft reset 0b1 -> no reset
+			 * */
 			data(0x0d);
-
-			command(0x01); /* Power setting: PWR */
+			/* DC|DC|DC : 	3 bits don't care
+			 * VCMZ		:	VCOM Hi-Z state function 0b0 -> no effect
+			 * TS_AUTO	:	Temp sensor activation 0b1
+			 * TIEG		:	VGL state function 0b1
+			 * NORG		:	VCOM during display 0b0 
+			 * VCM_LUTZ	:	default value 0b1
+			 * */
+			command(0x01); /* POWER setting: PWR */
 			data(0x03); /*Default settings */
 			data(0x10); /*Default settings */
 			data(0x3f); /*Default settings */
 			data(0x3f); /*Default settings */
 			data(0x0D); /*Default settings */
 
-			/* Temperature sensor configuration*/
 			command(0x41);
 			data(0x80); /*enable internal temp sensor */
 
@@ -75,85 +83,15 @@ class UC8253 {
 			data((height-1)>>8);
 			data((height-1)&0xff);
 
-			command(0x50); /* VCOM and data interval setting: CDI */
+			command(0x50); /* VCOM setting */
 			data(0xD7);
-
-			WAIT_FAILURE("VCOM SETTING", 5); /* Might not be necessary */
-
+			
+			WAIT_FAILURE("Initialization VCOM setting", 5);
+			
 			return true;
-		}
-		/* It is not a good idea to explicitly call this
-		 *	TODO: Make a system to track refresh, call upon full refresh every 15-20 refresh cycles
-		 * */
-		bool refreshPartial(void) {
-			command(0x91); /*PTIN*/
-
-			command(0xE0);
-			data(0x02);
-
-			command(0xE5);
-			data(0x6E);
-
-			command(0x50);
-			data(0xD7);
-
-			command(0x12);/* refresh */
-			WAIT_FAILURE("Partial Refresh", 5);
-			command(0x92); /*exit partial refresh mode*/
-
-			return true;
-		}
-		bool refreshFull(void) {
-			command(0xE0);
-			data(0x02);
-
-			command(0xE5);
-			data(0x5A);
-
-			command(0x50);
-			data(0x97);
-
-			command(0x12);/* refresh */
-			WAIT_FAILURE("Full Refresh", 5);
-			command(0x92); /*exit partial refresh mode*/
-
-			return true;
-		}
-		void sendbuf(void) {
-			uint32_t i;
-			uint8_t *t_ptr;
-
-			setRAMStartStop(1, 1, width, height);
-
-			command(0x10);
-			for (i=0;i<fbsiz;i++) {
-				data(oldfb[i]);
-			}
-			command(0x13);
-			for (i=0;i<fbsiz;i++) {
-				data(fb[i]);
-			}
-			/*Swap*/
-			t_ptr=oldfb;
-			oldfb=fb;
-			fb=t_ptr;
 		}
 		bool end(void) {
-			command(0x02); /* Power off: POF */
-			WAIT_FAILURE("Sleep mode", 5);
-
-			command(0x07); /* deep sleep: DSLP */
-			data(0xa5);
-
-			SPI.endTransaction();
-			SPI.end();
-			return true;
 		}
-		uint8_t *fb, *oldfb; /*Only let edit fb, oldfb should not be editable*/
-	private:
-		uint8_t scl, sda, res, dc, cs, busy, rst_counter; 
-		uint32_t width, height;
-		size_t fbsiz;
 
 		void command(uint8_t cmd) {
 			digitalWrite(dc, LOW);
@@ -179,6 +117,12 @@ class UC8253 {
 			}
 			return true;
 		}
+		uint8_t *fb, *oldfb; /*Only let edit fb, oldfb should not be editable*/
+		uint8_t scl, sda, res, dc, cs, busy, rst_counter; 
+		uint32_t width, height;
+		size_t fbsiz;
+	private:
+
 		void setRAMStartStop(uint16_t sx, uint16_t sy, uint16_t ex, uint16_t ey) {
 			command(0x90);
 			data(((sx-1)&0xf8)|0x7); /*just take the upper 5 bits, bottom 3 bits are always 1*/
