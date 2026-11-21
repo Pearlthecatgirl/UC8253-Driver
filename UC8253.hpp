@@ -1,6 +1,25 @@
 #include <stdint.h>
 #include <Arduino.h>
 #include <SPI.h>
+#include <assert.h>
+
+/* Basic operation flow
+ *
+ * assume serial is setup
+ * begin()
+ * # methods to edit the fb
+ *
+ * # set refresh method
+ * 	- fast full
+ * 	- full
+ * 	- partial
+ *
+ * # sendfb -> This method will send fb and refresh all at once
+ *
+ * end()
+ *
+ *
+ * */
 
 #define SPI_MAX_W_SPEED 20000000
 #define SPI_DATA_ORDER	MSBFIRST
@@ -83,9 +102,9 @@ class UC8253 {
 
 			command(0x50); /* VCOM setting */
 			data(0xD7);
-			
+
 			WAIT_FAILURE("Initialization VCOM setting", 5);
-			
+
 			return true;
 		}
 		bool end(void) {
@@ -96,6 +115,75 @@ class UC8253 {
 			command(0x07);
 			data(0xa5);
 			return true;
+		}
+		bool sendfb() {
+			uint8_t *tmpptr;
+			/* Set partial refresh data */
+			setRAMStartStop(1, 1, width-1, height-1); /* 1 indexed. */
+			command(0x91); /*PTIN*/
+
+			command(0x10);
+			uint32_t i;
+			for (i=0;i<fbsiz;i++) {
+				data(oldfb[i]);
+			}
+			command(0x13);
+			for (i=0;i<fbsiz;i++) {
+				data(fb[i]);
+			}
+
+			/* Refresh sequence */
+
+			/* Fast refresh data*/
+			//command(0xE0);
+			//data(0x02);
+
+			/* Fast refresh data*/
+			//command(0xE5);
+			//data(0x5A);
+
+			command(0x50);
+			data(0x97);
+
+			command(0x12);/* refresh */
+
+			WAIT_FAILURE("refresh", 5);
+			//if (!waitBusy()) {
+			//	Serial.println("refresh failed");
+			//	while (1) delay(100);
+			//}
+			command(0x92); /*exit partial refresh mode*/
+
+			tmpptr=oldfb;
+			oldfb=fb;
+			fb=tmpptr;
+
+			return true;
+		}
+		uint8_t *fb, *oldfb; /*Only let edit fb, oldfb should not be editable*/
+		uint8_t scl, sda, res, dc, cs, busy, rst_counter; 
+		uint32_t width, height;
+		size_t fbsiz;
+		enum refreshType {FULL, FULLFAST, PARTIAL} refreshMode;
+	private:
+
+		/* 0 index? or 1 index. 1 index!!*/
+		void setRAMStartStop(uint16_t sx, uint16_t sy, uint16_t ex, uint16_t ey) {
+			assert(sx > 0 && sy > 0);
+			assert(ex > 0 && ey > 0);
+			assert(sx < width && sy < height); /* x is 5 bits, y is 9 bits*/
+			assert(ex < width && ey < height);
+			assert(sx < ex); /* ignore all 0 widths/ 0 heights */
+			assert(sy < ey);
+
+			command(0x90);
+			data(((sx-1)&0xf8)|0x7); /*just take the upper 5 bits, bottom 3 bits are always 1*/
+			data(((ex-1)&0xf8)|0x7); /*just take the upper 5 bits, bottom 3 bits are always 1*/
+			data((sy-1)>>8);
+			data((sy-1)&0xff);
+			data((ey-1)>>8);
+			data((ey-1)&0xff);
+			data(0x01);
 		}
 		void command(uint8_t cmd) {
 			digitalWrite(dc, LOW);
@@ -120,22 +208,6 @@ class UC8253 {
 				delay(100);
 			}
 			return true;
-		}
-		uint8_t *fb, *oldfb; /*Only let edit fb, oldfb should not be editable*/
-		uint8_t scl, sda, res, dc, cs, busy, rst_counter; 
-		uint32_t width, height;
-		size_t fbsiz;
-	private:
-
-		void setRAMStartStop(uint16_t sx, uint16_t sy, uint16_t ex, uint16_t ey) {
-			command(0x90);
-			data(((sx-1)&0xf8)|0x7); /*just take the upper 5 bits, bottom 3 bits are always 1*/
-			data(((ex-1)&0xf8)|0x7); /*just take the upper 5 bits, bottom 3 bits are always 1*/
-			data((sy-1)>>8);
-			data((sy-1)&0xff);
-			data((ey-1)>>8);
-			data((ey-1)&0xff);
-			data(0x01);
 		}
 		uint8_t flip_byte(uint8_t byte) {
 			uint8_t LUT[]={
