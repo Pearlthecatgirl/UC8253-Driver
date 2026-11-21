@@ -19,8 +19,6 @@
 			rst_counter=0; \
 	}while(0)
 
-
-
 class UC8253 {
 	public:
 		UC8253(uint8_t scl, uint8_t sda, uint8_t res, uint8_t dc, uint8_t cs, uint8_t busy, uint32_t width, uint32_t height):
@@ -91,8 +89,14 @@ class UC8253 {
 			return true;
 		}
 		bool end(void) {
-		}
+			command(0x02);
 
+			WAIT_FAILURE("sleeping", 5);
+
+			command(0x07);
+			data(0xa5);
+			return true;
+		}
 		void command(uint8_t cmd) {
 			digitalWrite(dc, LOW);
 			digitalWrite(cs, LOW);
