@@ -3,6 +3,8 @@
 #include <SPI.h>
 #include <assert.h>
 
+#include "fonts.hpp"
+
 #define WHITE 1
 #define BLACK 0
 
@@ -273,6 +275,44 @@ class UC8253 {
 			printc_locked=1;
 			bitmap(x, y, bytew, h, bool_value, bm);
 			printc_locked=0;
+		}
+		/* Support only 8x8 for now */
+		void print(uint16_t x, uint16_t y, char *string) {
+			char c;
+			uint16_t cx=x, cy=y, i;
+			while ((c=*(string+i++))!=0) {
+				if (cx>=width) {
+					cx=0;
+					cy+=8;
+				}
+				if (cy>=height) return; /* Ignore all else */
+				
+				if ((uint8_t)c<(uint8_t)' ') {
+					switch ((uint8_t)c) {
+						case (uint8_t)'\0':
+							return;
+						case (uint8_t)'\n':
+							cy+=8;
+							cx=0;
+							break;
+						case (uint8_t)'\t':
+							cx+=16;
+							break;
+						case (uint8_t)'\r':
+							cx=0;
+							break;
+						default: break;
+					}
+				} else if ((uint8_t)c<=(uint8_t)'~') {
+					drawChar(cx, cy, c);
+					cx+=8;
+				} else continue; /* ignore everything else for now */
+			}
+			/* Bad behaviour, but whatever, im lazy */
+			if (!printc_locked) {
+				this->printc_cx=cx;
+				this->printc_cy=cy;
+			}
 		}
 	private:
 		uint8_t *fb, *oldfb; /*Only let edit fb, oldfb should not be editable*/
