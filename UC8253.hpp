@@ -247,6 +247,33 @@ class UC8253 {
 		uint8_t *prevbuf(void) {
 			return this->oldfb;
 		}
+		/* Support 1 font for now.. */
+		void drawChar(uint16_t x, uint16_t y, char c) {
+			bitmap(x, y, 1, 8, BLACK, FONT_SEL(pearlbasic_8x8, c));
+		}
+		/* c stands for continuous */
+		void print_c(char *string) {
+			printc_locked=1;
+			print(printc_cx, printc_cy, string);
+			printc_locked=0;
+		}
+		void print_c(uint16_t x, uint16_t y, char *string) {
+			printc_cx=x;
+			printc_cy=y;
+			printc_locked=1;
+			print(x, y, string);
+			printc_locked=0;
+		}
+		void bitmap_c(uint16_t bytew, uint16_t h, uint8_t bool_value, const uint8_t *bm) {
+			printc_locked=1;
+			bitmap(printc_cx, printc_cy, bytew, h, bool_value, bm);
+			printc_locked=0;
+		}
+		void bitmap_c(uint16_t x, uint16_t y, uint16_t bytew, uint16_t h, uint8_t bool_value, const uint8_t *bm) {
+			printc_locked=1;
+			bitmap(x, y, bytew, h, bool_value, bm);
+			printc_locked=0;
+		}
 	private:
 		uint8_t *fb, *oldfb; /*Only let edit fb, oldfb should not be editable*/
 		uint8_t scl, sda, res, dc, cs, busy, printc_locked; 
