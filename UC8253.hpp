@@ -3,6 +3,9 @@
 #include <SPI.h>
 #include <assert.h>
 
+#define WHITE 1
+#define BLACK 0
+
 /* Basic operation flow
  *
  * assume serial is setup
@@ -202,9 +205,43 @@ class UC8253 {
 
 			return true;
 		}
+		void bitmap(uint16_t x, uint16_t y, uint16_t bytew, uint16_t h, uint8_t bool_value, const uint8_t *bm) {
+			uint16_t r, c;
+			uint8_t b;
+			for (r=0;r<h;r++) {
+				for (c=0;c<bytew;c++) {
+					/*current byte: bm[r*bytew+c]*/
+					for (b=0;b<8;b++) {
+						/* Colour (C) and Bitness (B)
+						 * C(1) = WHITE, C(0) = BLACK
+						 * B(1) = HIGH,  B(0) = LOW
+						 * C B Output 
+						 * 0 0 1 : Low bit with black, is white
+						 * 0 1 0 : High bit with black is black
+						 * 1 0 0 : low bit with white is black
+						 * 1 1 1 : high bit with white is white
+						 * equiv to ~(C^B)
+						 * equiv to !C != !B
+						 *
+						 * */
+						if ((bool_value!=WHITE) != (((bm[r*bytew+c] & (0x80 >> b))>>(7-b))!=1)) {
+							pixel(x+b+(c*8), y+r, 0);
+						} else {
+							pixel(x+b+(c*8), y+r, 1);
+						}
+						// Old: pixel(x+b+(c*8), y+r, ((bm[r*bytew+c] & (0x80 >> b))>>(7-b)));
+					}
+				}
+			}
+			if (!printc_locked) {
+				this->printc_cx=x+b+(c*8);
+				this->printc_cy=y+r;
+			}
+		}
 		void pixel(uint16_t x, uint16_t y, uint8_t bool_value) {
 			uint8_t tmpbuf=flip_byte(fb[y*(width>>3)+(x>>3)]);
-			tmpbuf^=~(1<<x%8)|(bool_value<<x%8);
+			//tmpbuf^=~(1<<x%8)|(bool_value<<x%8);
+			tmpbuf=(tmpbuf&~(1<<(x%8)))|(bool_value<<(x%8));
 			fb[y*(width>>3)+(x>>3)]=flip_byte(tmpbuf);
 		}
 		uint8_t *prevbuf(void) {
@@ -212,8 +249,8 @@ class UC8253 {
 		}
 	private:
 		uint8_t *fb, *oldfb; /*Only let edit fb, oldfb should not be editable*/
-		uint8_t scl, sda, res, dc, cs, busy, rst_counter; 
-		uint32_t width, height;
+		uint8_t scl, sda, res, dc, cs, busy, printc_locked; 
+		uint32_t width, height, rst_counter, printc_cx, printc_cy;
 		size_t fbsiz;
 		UC8253_refreshType refMode;
 		/* 0 index? or 1 index. 1 index!!*/
