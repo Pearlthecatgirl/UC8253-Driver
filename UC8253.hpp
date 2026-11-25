@@ -122,6 +122,10 @@ class UC8253 {
 
 			command(0x07);
 			data(0xa5);
+
+			SPI.endTransaction();
+			SPI.end();
+
 			return true;
 		}
 		void setrefreshMode(UC8253_refreshType ref) {
