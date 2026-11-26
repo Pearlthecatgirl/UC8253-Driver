@@ -365,12 +365,6 @@ class UC8253 {
 		uint8_t *fbaccess(void) {
 			return fb;
 		}
-	private:
-		uint8_t *fb, *oldfb; /*Only let edit fb, oldfb should not be editable*/
-		uint8_t scl, sda, res, dc, cs, busy, printc_locked; 
-		uint32_t width, height, rst_counter, printc_cx, printc_cy;
-		size_t fbsiz;
-		UC8253_refreshType refMode;
 		/* 0 index? or 1 index. 1 index!!*/
 		void setRAMStartStop(uint16_t sx, uint16_t sy, uint16_t ex, uint16_t ey) {
 			assert(sx > 0 && sy > 0);
@@ -389,6 +383,12 @@ class UC8253 {
 			data((ey-1)&0xff);
 			data(0x01);
 		}
+	private:
+		uint8_t *fb, *oldfb; /*Only let edit fb, oldfb should not be editable*/
+		uint8_t scl, sda, res, dc, cs, busy, printc_locked; 
+		uint32_t width, height, rst_counter, printc_cx, printc_cy;
+		size_t fbsiz;
+		UC8253_refreshType refMode;
 		void command(uint8_t cmd) {
 			digitalWrite(dc, LOW);
 			digitalWrite(cs, LOW);
