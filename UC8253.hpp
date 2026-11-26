@@ -381,7 +381,7 @@ class UC8253 {
 			data((sy-1)&0xff);
 			data((ey-1)>>8);
 			data((ey-1)&0xff);
-			data(0x01);
+			data(0x00);
 		}
 	private:
 		uint8_t *fb, *oldfb; /*Only let edit fb, oldfb should not be editable*/
