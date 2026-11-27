@@ -55,65 +55,28 @@ class UC8253 {
 				memset(oldfb, 0xff, sizeof(uint8_t)*fbsiz);
 				this->refMode=FULL;
 			}
+		bool begin(SPIClass *spi) {
+			pinMode(cs, OUTPUT);
+			pinMode(dc, OUTPUT);
+			pinMode(res, OUTPUT);
+			pinMode(busy, INPUT);
+
+			this->scrSPI=spi;
+			scrSPI->begin(scl, -1, sda, cs); /* No miso line, data should be sent back via SDA? fake spi and all */
+			scrSPI->beginTransaction(SPISettings(SPI_MAX_W_SPEED, SPI_DATA_ORDER, SPI_DATAMODE));
+			return this->init();
+		}
 		bool begin(void) {
 			pinMode(cs, OUTPUT);
 			pinMode(dc, OUTPUT);
 			pinMode(res, OUTPUT);
 			pinMode(busy, INPUT);
 
-			SPI.begin(scl, -1, sda, cs); /* No miso line, data should be sent back via SDA? fake spi and all */
-			SPI.beginTransaction(SPISettings(SPI_MAX_W_SPEED, SPI_DATA_ORDER, SPI_DATAMODE));
+			this->scrSPI=new SPIClass(HSPI);
 
-			/*HWRESET*/
-
-			digitalWrite(res, LOW);
-			delay(20);
-			digitalWrite(res, HIGH);
-			delay(20);
-
-			command(0x04); /* POWER ON: PON*/
-			WAIT_FAILURE("POWER ON Sequence", 5);
-
-			command(0x00); /* PANEL SETTING: PSR*/
-			data(0xdf);
-			/* RES1|RES0 : 	RESOLUTION 0b11 ->480x240
-			 * REG		 : 	0b0 -> load lut from otp
-			 * KW/R		 : 	0b1 -> bw only
-			 * UD		 : 	gate scan direction 0b1 -> scan up
-			 * SHL		 : 	src shift direction 0b1 -> shift right
-			 * SHD_N	 : 	booster switch 0b1 -> booster on
-			 * RST_N	 : 	soft reset 0b1 -> no reset
-			 * */
-			data(0x0d);
-			/* DC|DC|DC : 	3 bits don't care
-			 * VCMZ		:	VCOM Hi-Z state function 0b0 -> no effect
-			 * TS_AUTO	:	Temp sensor activation 0b1
-			 * TIEG		:	VGL state function 0b1
-			 * NORG		:	VCOM during display 0b0 
-			 * VCM_LUTZ	:	default value 0b1
-			 * */
-			command(0x01); /* POWER setting: PWR */
-			data(0x03); /*Default settings */
-			data(0x10); /*Default settings */
-			data(0x3f); /*Default settings */
-			data(0x3f); /*Default settings */
-			data(0x0D); /*Default settings */
-
-			command(0x41);
-			data(0x80); /*enable internal temp sensor */
-
-			command(0x61); /*RESOLUTION SETTING: TRES*/
-			//data((width>>3)<<3); /* 8 gates per pin, remove lower 3 bits */
-			data(((width-1)&0xf8)); /*just take the upper 5 bits*/
-			data((height-1)>>8);
-			data((height-1)&0xff);
-
-			command(0x50); /* VCOM setting */
-			data(0xD7);
-
-			WAIT_FAILURE("Initialization VCOM setting", 5);
-
-			return true;
+			scrSPI->begin(scl, -1, sda, cs); /* No miso line, data should be sent back via SDA? fake spi and all */
+			scrSPI->beginTransaction(SPISettings(SPI_MAX_W_SPEED, SPI_DATA_ORDER, SPI_DATAMODE));
+			return this->init();
 		}
 		bool end(void) {
 			command(0x02);
@@ -123,8 +86,8 @@ class UC8253 {
 			command(0x07);
 			data(0xa5);
 
-			SPI.endTransaction();
-			SPI.end();
+			scrSPI->endTransaction();
+			scrSPI->end();
 
 			return true;
 		}
@@ -384,15 +347,67 @@ class UC8253 {
 			data(0x00);
 		}
 	private:
+		SPIClass *scrSPI;
 		uint8_t *fb, *oldfb; /*Only let edit fb, oldfb should not be editable*/
 		uint8_t scl, sda, res, dc, cs, busy, printc_locked; 
 		uint32_t width, height, rst_counter, printc_cx, printc_cy;
 		size_t fbsiz;
 		UC8253_refreshType refMode;
+		bool init(void) {
+			/*HWRESET*/
+			digitalWrite(res, LOW);
+			delay(20);
+			digitalWrite(res, HIGH);
+			delay(20);
+
+			command(0x04); /* POWER ON: PON*/
+			WAIT_FAILURE("POWER ON Sequence", 5);
+
+			command(0x00); /* PANEL SETTING: PSR*/
+			data(0xdf);
+			/* RES1|RES0 : 	RESOLUTION 0b11 ->480x240
+			 * REG		 : 	0b0 -> load lut from otp
+			 * KW/R		 : 	0b1 -> bw only
+			 * UD		 : 	gate scan direction 0b1 -> scan up
+			 * SHL		 : 	src shift direction 0b1 -> shift right
+			 * SHD_N	 : 	booster switch 0b1 -> booster on
+			 * RST_N	 : 	soft reset 0b1 -> no reset
+			 * */
+			data(0x0d);
+			/* DC|DC|DC : 	3 bits don't care
+			 * VCMZ		:	VCOM Hi-Z state function 0b0 -> no effect
+			 * TS_AUTO	:	Temp sensor activation 0b1
+			 * TIEG		:	VGL state function 0b1
+			 * NORG		:	VCOM during display 0b0 
+			 * VCM_LUTZ	:	default value 0b1
+			 * */
+			command(0x01); /* POWER setting: PWR */
+			data(0x03); /*Default settings */
+			data(0x10); /*Default settings */
+			data(0x3f); /*Default settings */
+			data(0x3f); /*Default settings */
+			data(0x0D); /*Default settings */
+
+			command(0x41);
+			data(0x80); /*enable internal temp sensor */
+
+			command(0x61); /*RESOLUTION SETTING: TRES*/
+			//data((width>>3)<<3); /* 8 gates per pin, remove lower 3 bits */
+			data(((width-1)&0xf8)); /*just take the upper 5 bits*/
+			data((height-1)>>8);
+			data((height-1)&0xff);
+
+			command(0x50); /* VCOM setting */
+			data(0xD7);
+
+			WAIT_FAILURE("Initialization VCOM setting", 5);
+
+			return true;
+		}
 		void command(uint8_t cmd) {
 			digitalWrite(dc, LOW);
 			digitalWrite(cs, LOW);
-			SPI.transfer(cmd);
+			scrSPI->transfer(cmd);
 			digitalWrite(cs, HIGH);
 		}
 		/* UC8253 datasheet specifies that CS should be
@@ -401,7 +416,7 @@ class UC8253 {
 		void data(uint8_t dat) {
 			digitalWrite(dc, HIGH);
 			digitalWrite(cs, LOW);
-			SPI.transfer(dat);
+			scrSPI->transfer(dat);
 			digitalWrite(cs, HIGH);
 		}
 		bool waitBusy(uint32_t wait=10000) {
