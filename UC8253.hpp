@@ -30,6 +30,8 @@
 #define SPI_DATA_ORDER	MSBFIRST
 #define SPI_DATAMODE	SPI_MODE0
 
+#define SMALLEST_PX_FONT_SIZE 8
+
 #define WAIT_FAILURE(WAITER, WAITMAX)  \
 	do { \
 			while (!waitBusy()) { \
@@ -47,7 +49,7 @@
 #define ASSERT(predicate, file) _impl_CASSERT_LINE(predicate,__LINE__,file)
 #define _impl_PASTE(a,b) a##b
 #define _impl_CASSERT_LINE(predicate, line, file) \
-	typedef char _impl_PASTE(assertion_failed_##file##_,line)[2*!!(predicate)-1];
+	typedef char _impl_PASTE(assertion_failed_##file##_,line)[2*!!(predicate)-1]
 #endif
 
 
@@ -58,6 +60,7 @@ class UC8253 {
 		UC8253(const uint8_t scl, const uint8_t sda, const uint8_t res, const uint8_t dc, const uint8_t cs, const uint8_t busy, const uint32_t width, const uint32_t height):
 			scl(scl), sda(sda), res(res), dc(dc), cs(cs), busy(busy), width(width), height(height) {
 				fbsiz=height*(width/8); /* width is div by 8 because monochrome screen, consider bits instead */
+				max_string_size=height*width/(SMALLEST_PX_FONT_SIZE*SMALLEST_PX_FONT_SIZE);
 				fb=(uint8_t *)malloc(sizeof(uint8_t)*fbsiz);
 				oldfb=(uint8_t *)malloc(sizeof(uint8_t)*fbsiz);
 				memset(oldfb, 0xff, sizeof(uint8_t)*fbsiz);
@@ -187,11 +190,24 @@ class UC8253 {
 
 			return true;
 		}
-		void drawChar(uint16_t x, uint16_t y, char c) {
+		void setfb(const uint8_t value) {
+			size_t i;
+			for (i=0;i<fbsiz;i++) {
+				this->fb[i]=value;
+			}
+		}
+		void setfb(const uint8_t value, size_t size, const size_t start) {
+			ASSERT(start<size, size_must_be_greater_than_start);
+			size_t i;
+			for (i=start;i<size;i++) {
+				this->fb[size]=value;
+			}
+		}
+		void drawChar(const uint16_t x, const uint16_t y, const char c) {
 			bitmap(x, y, 1, 8, BLACK, FONT_SEL(pearlbasic_8x8, c));
 		}
 		void printf(uint16_t x, uint16_t y, char *fmt, ...) {
-			char *pstring;
+			char pstring[max_string_size];
 			va_list args;
 			char c;
 			uint16_t cx=x, cy=y, i;
@@ -277,7 +293,7 @@ class UC8253 {
 				this->printc_cy=cy;
 			}
 		}
-		void print_c(uint16_t x, uint16_t y, char *fmt, ...) {
+		void print_c(const uint16_t x, const uint16_t y, char *fmt, ...) {
 			printc_cx=x;
 			printc_cy=y;
 			printc_locked=1;
@@ -287,7 +303,7 @@ class UC8253 {
 			va_end(args);
 			printc_locked=0;
 		}
-		void bitmap(uint16_t x, uint16_t y, uint16_t bytew, uint16_t h, uint8_t bool_value, const uint8_t *bm) {
+		void bitmap(const uint16_t x, const uint16_t y, const uint16_t bytew, const uint16_t h, const uint8_t bool_value, const uint8_t *bm) {
 			uint16_t r, c;
 			uint8_t b;
 			for (r=0;r<h;r++) {
@@ -325,6 +341,7 @@ class UC8253 {
 		SPIClass *scrSPI;
 		uint8_t *fb, *oldfb; /*Only let edit fb, oldfb should not be editable*/
 		uint8_t scl, sda, res, dc, cs, busy, printc_locked; 
+		uint16_t max_string_size;
 		uint32_t width, height, rst_counter, printc_cx, printc_cy;
 		size_t fbsiz;
 		UC8253_refreshType refMode;
