@@ -187,6 +187,9 @@ class UC8253 {
 
 			return true;
 		}
+		void drawChar(uint16_t x, uint16_t y, char c) {
+			bitmap(x, y, 1, 8, BLACK, FONT_SEL(pearlbasic_8x8, c));
+		}
 		void printf(uint16_t x, uint16_t y, char *fmt, ...) {
 			char *pstring;
 			va_list args;
@@ -231,9 +234,93 @@ class UC8253 {
 				this->printc_cy=cy;
 			}
 		}
-		void drawChar(uint16_t x, uint16_t y, char c) {
-			bitmap(x, y, 1, 8, BLACK, FONT_SEL(pearlbasic_8x8, c));
+		void printf(uint16_t x, uint16_t y, char *fmt, va_list va_args) {
+			char *pstring;
+			char c;
+			uint16_t cx=x, cy=y, i;
+			va_list args;
+
+			va_copy(va_args, args);
+			vsprintf(pstring, fmt, args);
+
+			while ((c=*(pstring+i++))!=0) {
+				if (cx>=width) {
+					cx=0;
+					cy+=8;
+				}
+				if (cy>=height) return; /* Ignore all else */
+
+				if ((uint8_t)c<(uint8_t)' ') {
+					switch ((uint8_t)c) {
+						case (uint8_t)'\0':
+							return;
+						case (uint8_t)'\n':
+							cy+=8;
+							cx=0;
+							break;
+						case (uint8_t)'\t':
+							cx+=16;
+							break;
+						case (uint8_t)'\r':
+							cx=0;
+							break;
+						default: break;
+					}
+				} else if ((uint8_t)c<=(uint8_t)'~') {
+					drawChar(cx, cy, c);
+					cx+=8;
+				} else continue; /* ignore everything else for now */
+			}
+			/* Bad behaviour, but whatever, im lazy */
+			if (!printc_locked) {
+				this->printc_cx=cx;
+				this->printc_cy=cy;
+			}
 		}
+		void print_c(uint16_t x, uint16_t y, char *fmt, ...) {
+			printc_cx=x;
+			printc_cy=y;
+			printc_locked=1;
+			va_list args;
+			va_start(args, fmt);
+			printf(x, y, fmt, args);
+			va_end(args);
+			printc_locked=0;
+		}
+		void bitmap(uint16_t x, uint16_t y, uint16_t bytew, uint16_t h, uint8_t bool_value, const uint8_t *bm) {
+			uint16_t r, c;
+			uint8_t b;
+			for (r=0;r<h;r++) {
+				for (c=0;c<bytew;c++) {
+					/*current byte: bm[r*bytew+c]*/
+					for (b=0;b<8;b++) {
+						/* Colour (C) and Bitness (B)
+						 * C(1) = WHITE, C(0) = BLACK
+						 * B(1) = HIGH,  B(0) = LOW
+						 * C B Output 
+						 * 0 0 1 : Low bit with black, is white
+						 * 0 1 0 : High bit with black is black
+						 * 1 0 0 : low bit with white is black
+						 * 1 1 1 : high bit with white is white
+						 * equiv to ~(C^B)
+						 * equiv to !C != !B
+						 *
+						 * */
+						if ((bool_value!=WHITE) != (((bm[r*bytew+c] & (0x80 >> b))>>(7-b))!=1)) {
+							pixel(x+b+(c*8), y+r, 0);
+						} else {
+							pixel(x+b+(c*8), y+r, 1);
+						}
+						// Old: pixel(x+b+(c*8), y+r, ((bm[r*bytew+c] & (0x80 >> b))>>(7-b)));
+					}
+				}
+			}
+			if (!printc_locked) {
+				this->printc_cx=x+b+(c*8);
+				this->printc_cy=y+r;
+			}
+		}
+
 	private:
 		SPIClass *scrSPI;
 		uint8_t *fb, *oldfb; /*Only let edit fb, oldfb should not be editable*/
