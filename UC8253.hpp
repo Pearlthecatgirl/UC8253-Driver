@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <Arduino.h>
 #include <SPI.h>
+#include <stdarg.h>
 
 #include "fonts.hpp"
 
@@ -73,6 +74,19 @@ class UC8253 {
 			scrSPI->beginTransaction(SPISettings(SPI_MAX_W_SPEED, SPI_DATA_ORDER, SPI_DATAMODE));
 			return this->init();
 		}
+		bool end(void) {
+			command(0x02);
+
+			WAIT_FAILURE("sleeping", 5);
+
+			command(0x07);
+			data(0xa5);
+
+			scrSPI->endTransaction();
+			scrSPI->end();
+
+			return true;
+		}
 		void setrefreshMode(const UC8253_refreshType ref) {
 			this->refMode=ref;
 		}
@@ -97,19 +111,6 @@ class UC8253 {
 			uint8_t tmpbuf=flip_byte(fb[y*(width>>3)+(x>>3)]);
 			tmpbuf=(tmpbuf&~(1<<(x%8)))|(bool_value<<(x%8));
 			fb[y*(width>>3)+(x>>3)]=flip_byte(tmpbuf);
-		}
-		bool end(void) {
-			command(0x02);
-
-			WAIT_FAILURE("sleeping", 5);
-
-			command(0x07);
-			data(0xa5);
-
-			scrSPI->endTransaction();
-			scrSPI->end();
-
-			return true;
 		}
 		bool sendfb(void) {
 			uint8_t *tmpptr;
@@ -185,6 +186,53 @@ class UC8253 {
 			fb=tmpptr;
 
 			return true;
+		}
+		void printf(uint16_t x, uint16_t y, char *fmt, ...) {
+			char *pstring;
+			va_list args;
+			char c;
+			uint16_t cx=x, cy=y, i;
+
+			va_start(args, fmt);
+			vsprintf(pstring, fmt, args);
+			va_end(args);
+
+			while ((c=*(pstring+i++))!=0) {
+				if (cx>=width) {
+					cx=0;
+					cy+=8;
+				}
+				if (cy>=height) return; /* Ignore all else */
+
+				if ((uint8_t)c<(uint8_t)' ') {
+					switch ((uint8_t)c) {
+						case (uint8_t)'\0':
+							return;
+						case (uint8_t)'\n':
+							cy+=8;
+							cx=0;
+							break;
+						case (uint8_t)'\t':
+							cx+=16;
+							break;
+						case (uint8_t)'\r':
+							cx=0;
+							break;
+						default: break;
+					}
+				} else if ((uint8_t)c<=(uint8_t)'~') {
+					drawChar(cx, cy, c);
+					cx+=8;
+				} else continue; /* ignore everything else for now */
+			}
+			/* Bad behaviour, but whatever, im lazy */
+			if (!printc_locked) {
+				this->printc_cx=cx;
+				this->printc_cy=cy;
+			}
+		}
+		void drawChar(uint16_t x, uint16_t y, char c) {
+			bitmap(x, y, 1, 8, BLACK, FONT_SEL(pearlbasic_8x8, c));
 		}
 	private:
 		SPIClass *scrSPI;
